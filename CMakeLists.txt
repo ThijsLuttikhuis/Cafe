@@ -15,6 +15,7 @@ include_directories(src)
 set(INCLUDE_SOURCE_FILES
         src/TokenHandler.cpp
         src/TokenHandler.h
+        src/BiDirectionalMap.h
         )
 
 add_executable(Cafe

@@ -7,6 +7,44 @@
 
 #include "TokenHandler.h"
 
+namespace Cafe {
+
+BiDirectionalMap<std::string, TokenHandler::TokenType> TokenHandler::stringTokenTypeMap = BiDirectionalMap<std::string, TokenHandler::TokenType>(
+      {
+            {"\"",            TokenHandler::TokenType::quote_},
+            {"'",             TokenHandler::TokenType::single_qoute},
+            {";",             TokenHandler::TokenType::semicolon_},
+            {":",             TokenHandler::TokenType::colon_},
+            {",",             TokenHandler::TokenType::comma_},
+            {"=",             TokenHandler::TokenType::equal_sign},
+            {"+",             TokenHandler::TokenType::plus_},
+            {"-",             TokenHandler::TokenType::minus_},
+            {"!",             TokenHandler::TokenType::exclamation_mark},
+            {">",             TokenHandler::TokenType::greater_than},
+            {"<",             TokenHandler::TokenType::less_than},
+            {"*",             TokenHandler::TokenType::star_},
+            {"/",             TokenHandler::TokenType::slash_},
+            {"(",             TokenHandler::TokenType::open_bracket},
+            {")",             TokenHandler::TokenType::close_bracket},
+            {"{",             TokenHandler::TokenType::open_curly_bracket},
+            {"}",             TokenHandler::TokenType::close_curly_bracket},
+            {"[",             TokenHandler::TokenType::open_square_bracket},
+            {"]",             TokenHandler::TokenType::close_square_bracket},
+
+            {"import",        TokenHandler::TokenType::import_},
+            {"return",        TokenHandler::TokenType::return_},
+            {"print",         TokenHandler::TokenType::print_},
+            {"auto",          TokenHandler::TokenType::auto_},
+            {"int",           TokenHandler::TokenType::int_},
+            {"uint",          TokenHandler::TokenType::uint_},
+            {"float",         TokenHandler::TokenType::float_},
+            {"double",        TokenHandler::TokenType::double_},
+
+            {"variable name", TokenHandler::TokenType::variable_name},
+            {"number",        TokenHandler::TokenType::number_},
+
+            {"none",          TokenHandler::TokenType::none_}});
+
 void TokenHandler::tokenize(const std::string &fileContent) {
 
     std::vector<std::string> lines = separateContentByLine(fileContent);
@@ -114,32 +152,61 @@ std::pair<Token, unsigned long> TokenHandler::getToken(const std::string &line, 
         return {Token(TokenType::semicolon_), i};
     }
 
-    // check quote_
-    std::string quote_ = getQuote(line, i);
-    if (!quote_.empty()) {
-        return {Token(TokenType::quote_, quote_), i + quote_.size() + 1};
-    }
-
-    // check bracket
-    std::string operator_ = getOperator(line, i);
-    if (!operator_.empty()) {
-        if (operator_ == "(") {
-            return {Token(TokenType::open_bracket), i + 1};
-        }
-        if (operator_ == ")") {
-            return {Token(TokenType::close_bracket), i + 1};
+    // check quote
+    {
+        std::string quote_ = getQuote(line, i);
+        if (!quote_.empty()) {
+            return {Token(TokenType::quote_, quote_), i + quote_.size() + 2};
         }
     }
 
     // check keyword / var name
-    std::string word_ = getWord(line, i);
-    if (!word_.empty()) {
-        if (word_ == "import") {
-            return {Token(TokenType::import_), i + word_.size()};
+    {
+        std::string word_ = getWord(line, i);
+        if (!word_.empty()) {
+            if (isKeyword(word_)) {
+                return {Token(stringTokenTypeMap.at(word_)), i + word_.size()};
+            }
+            return {Token(TokenType::variable_name), i + word_.size()};
+        }
+    }
+
+    // check number
+    {
+        std::string number_ = getNumber(line, i);
+        if (!number_.empty()) {
+            return {Token(TokenType::number_, number_), i + number_.size()};
+        }
+    }
+
+    // check operator
+    {
+        std::string operator_ = getOperator(line, i);
+        if (!operator_.empty()) {
+            if (isOperator(operator_)) {
+                return {Token(stringTokenTypeMap.at(operator_)), i + 1};
+            }
+            return {};
         }
     }
 
     return {};
+}
+
+std::string TokenHandler::getQuote(const std::string &line, unsigned long i) {
+    if (line[i] != '"') {
+        return "";
+    } else {
+        unsigned long long int endPos = i;
+        do {
+            endPos = line.find('"', endPos + 1);
+            if (endPos == std::string::npos) {
+                return "";
+            }
+        } while (line[endPos - 1] == '\\');
+
+        return line.substr(i + 1, endPos - (i + 1));
+    }
 }
 
 std::string TokenHandler::getWord(const std::string &line, unsigned long i) {
@@ -153,24 +220,14 @@ std::string TokenHandler::getWord(const std::string &line, unsigned long i) {
             }
             j++;
         }
-        std::string keyword = line.substr(i, j);
+        if (isspace(line[j])) {
+            j++;
+        }
+        if (j < line.size() && (!getNumber(line, j).empty() || (!getWord(line, j).empty() && isKeyword(getWord(line, j))))) {
+            return "";
+        }
+        std::string keyword = line.substr(i, j - i);
         return keyword;
-    }
-}
-
-std::string TokenHandler::getQuote(const std::string &line, unsigned long i) {
-    if (line[i] != '"') {
-        return "";
-    } else {
-        unsigned long long int endPos;
-        do {
-            endPos = line.find('"', i + 1);
-            if (endPos == std::string::npos) {
-                return "";
-            }
-        } while (line[endPos-1] == '\\');
-
-        return line.substr(i + 1, endPos - i);
     }
 }
 
@@ -180,4 +237,85 @@ std::string TokenHandler::getOperator(const std::string &line, unsigned long i) 
     } else {
         return line.substr(i, 1);
     }
+}
+
+std::string TokenHandler::getNumber(const std::string &line, unsigned long i) {
+    unsigned long nDots = 0;
+    if (!isdigit(line[i]) && line[i] != '.') {
+        return "";
+    } else {
+        if (line[i] == '.') {
+            nDots++;
+        }
+        auto j = i + 1;
+        while (j < line.size()) {
+            if (!isdigit(line[j]) && line[j] != '.') {
+                break;
+            }
+            if (line[j] == '.') {
+                nDots++;
+            }
+            j++;
+        }
+        if (nDots > 1) {
+            return "";
+        }
+        if (isspace(line[j])) {
+            j++;
+        }
+        if (j < line.size() && isalpha(line[j])) {
+            if (nDots == 1) {
+                // double / single precision float: d / f
+                if (line[j] != 'd' && line[j] != 'f') {
+                    return "";
+                }
+            } else {
+                // unsigned / signed int: u / s
+                if (line[j] != 'u' && line[j] != 's') {
+                    return "";
+                }
+            }
+            j++;
+             if (!getWord(line, j).empty() || !getNumber(line, j).empty()){
+                return "";
+            }
+        }
+        std::string number = line.substr(i, j - i);
+        return number;
+    }
+}
+
+bool TokenHandler::isKeyword(const std::string &word_) {
+    return word_ == "quote" ||
+           word_ == "import" ||
+           word_ == "return" ||
+           word_ == "auto" ||
+           word_ == "int" ||
+           word_ == "uint" ||
+           word_ == "float" ||
+           word_ == "double";
+
+}
+
+bool TokenHandler::isOperator(const std::string &operator_) {
+    return operator_ == ";" ||
+           operator_ == ":" ||
+           operator_ == "," ||
+           operator_ == "=" ||
+           operator_ == "+" ||
+           operator_ == "-" ||
+           operator_ == "!" ||
+           operator_ == ">" ||
+           operator_ == "<" ||
+           operator_ == "*" ||
+           operator_ == "/" ||
+           operator_ == "(" ||
+           operator_ == ")" ||
+           operator_ == "{" ||
+           operator_ == "}" ||
+           operator_ == "[" ||
+           operator_ == "]";
+}
+
+
 }

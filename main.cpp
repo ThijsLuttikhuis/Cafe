@@ -12,7 +12,7 @@ int main() {
     std::ifstream ifs("../test.cf");
     std::string fileContent((std::istreambuf_iterator<char>(ifs)),(std::istreambuf_iterator<char>()));
 
-    TokenHandler tokenHandler;
+    Cafe::TokenHandler tokenHandler;
 
     tokenHandler.tokenize(fileContent);
 
